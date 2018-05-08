@@ -20,7 +20,8 @@ plaintext = "Bob,test message to Bob"
 aes_blocksize = 16
 aes_keysize = 128
 
-def aes(bytes):
+# return key, iv, ciphercode
+def aes_encrypt(bytes):
     iv = os.urandom(aes_blocksize)
     key = os.urandom(int(aes_keysize / 8))
     backend = default_backend()
@@ -31,12 +32,14 @@ def aes(bytes):
     bytes = encryptor.update(padded_data) + encryptor.finalize()
     return key, iv, bytes
 
-def prependlength(bytes):
+# returns bytes with 4 bit big endian integer representing length of bytes prepended
+def prepend_length(bytes):
     out = bytearray(struct.pack('>I', len(bytes)))
     out.extend(bytes)
     return out
 
-def rsa(keyfile, iv, key):
+# returns bytes encrypted with rsa, using provided public key file
+def rsa_encrypt(keyfile, bytes):
     with open(keyfile, "rb") as key_file:
         public_key = serialization.load_pem_public_key(
             key_file.read(),
@@ -44,7 +47,7 @@ def rsa(keyfile, iv, key):
         )
         
         ciphertext = public_key.encrypt(
-            iv + key,
+            bytes,
             paddingrsa.OAEP(
                 mgf=paddingrsa.MGF1(algorithm=hashes.SHA256()),
                 algorithm=hashes.SHA256(),
@@ -74,14 +77,14 @@ def rsa(keyfile, iv, key):
         return ciphertext
     
 outmsg = plaintext.encode()
-key, iv, outmsg = aes(outmsg)
+key, iv, outmsg = aes_encrypt(outmsg)
 #print((key + iv).hex())
 #print("---")
-encrypted_info = rsa("keys/public-key-mix-1.pem", iv, key) #rsa("testkeys/test.pem", iv, key) #"keys/public-key-mix-1.pem"
+encrypted_info = rsa_encrypt("keys/public-key-mix-1.pem", iv + key) #rsa_encrypt("testkeys/test.pem", iv, key) #"keys/public-key-mix-1.pem"
 #print(encrypted_info.hex())
 
 outmsg = encrypted_info + outmsg;
-outmsg = prependlength(outmsg)
+outmsg = prepend_length(outmsg)
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 socket.connect((address, port))
