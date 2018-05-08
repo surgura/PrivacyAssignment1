@@ -1,5 +1,4 @@
-
-https://stuvel.eu/python-rsa-doc/usage.html
+#https://stuvel.eu/python-rsa-doc/usage.html
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
@@ -13,7 +12,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding as paddingrsa
 from cryptography.hazmat.primitives import hashes
 
-port = 54857
+port = 52103
 address = "pets.ewi.utwente.nl"
 
 plaintext = "Bob,test message to Bob"
@@ -52,7 +51,7 @@ def rsa(keyfile, iv, key):
                 label=None
             )
         )
-        
+        '''
         with open("testkeys/test.ppk", "rb") as key_file:
             private_key = serialization.load_pem_private_key(
                 key_file.read(),
@@ -70,6 +69,7 @@ def rsa(keyfile, iv, key):
             )
             print((iv+key).hex())
             print(plaintext.hex())
+        '''
             
         return ciphertext
     
@@ -77,7 +77,7 @@ outmsg = plaintext.encode()
 key, iv, outmsg = aes(outmsg)
 #print((key + iv).hex())
 #print("---")
-encrypted_info = rsa("testkeys/test.pem", iv, key) #"keys/public-key-mix-1.pem"
+encrypted_info = rsa("keys/public-key-mix-1.pem", iv, key) #rsa("testkeys/test.pem", iv, key) #"keys/public-key-mix-1.pem"
 #print(encrypted_info.hex())
 
 outmsg = encrypted_info + outmsg;
