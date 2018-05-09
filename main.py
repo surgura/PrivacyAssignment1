@@ -12,10 +12,12 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding as paddingrsa
 from cryptography.hazmat.primitives import hashes
 
-port = 52103
+port = 55897      
 address = "pets.ewi.utwente.nl"
 
-plaintext = "Bob,test message to Bob"
+pk_mix1 = "keys/public-key-mix-1.pem"
+pk_mix2 = "keys/public-key-mix-2.pem"
+pk_mix3 = "keys/public-key-mix-3.pem"
 
 aes_blocksize = 16
 aes_keysize = 128
@@ -32,12 +34,6 @@ def aes_encrypt(bytes):
     bytes = encryptor.update(padded_data) + encryptor.finalize()
     return key, iv, bytes
 
-# returns bytes with 4 bit big endian integer representing length of bytes prepended
-def prepend_length(bytes):
-    out = bytearray(struct.pack('>I', len(bytes)))
-    out.extend(bytes)
-    return out
-
 # returns bytes encrypted with rsa, using provided public key file
 def rsa_encrypt(keyfile, bytes):
     with open(keyfile, "rb") as key_file:
@@ -49,46 +45,34 @@ def rsa_encrypt(keyfile, bytes):
         ciphertext = public_key.encrypt(
             bytes,
             paddingrsa.OAEP(
-                mgf=paddingrsa.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
+                mgf=paddingrsa.MGF1(algorithm=hashes.SHA1()),
+                algorithm=hashes.SHA1(),
                 label=None
             )
         )
-        '''
-        with open("testkeys/test.ppk", "rb") as key_file:
-            private_key = serialization.load_pem_private_key(
-                key_file.read(),
-                password=None,
-                backend=default_backend()
-            )
-            
-            plaintext = private_key.decrypt(
-                ciphertext,
-                paddingrsa.OAEP(
-                    mgf=paddingrsa.MGF1(algorithm=hashes.SHA256()),
-                    algorithm=hashes.SHA256(),
-                    label=None
-                )
-            )
-            print((iv+key).hex())
-            print(plaintext.hex())
-        '''
-            
         return ciphertext
-    
-outmsg = plaintext.encode()
-key, iv, outmsg = aes_encrypt(outmsg)
-#print((key + iv).hex())
-#print("---")
-encrypted_info = rsa_encrypt("keys/public-key-mix-1.pem", iv + key) #rsa_encrypt("testkeys/test.pem", iv, key) #"keys/public-key-mix-1.pem"
-#print(encrypted_info.hex())
 
-outmsg = encrypted_info + outmsg;
-outmsg = prepend_length(outmsg)
+def mix_encrypt(mix_file, bytes):
+    key, iv, cipherdata = aes_encrypt(bytes)
+    cipherkeys = rsa_encrypt(mix_file, iv + key)
+    return cipherkeys + cipherdata
+    
+# returns bytes with 4 bit big endian integer representing length of bytes prepended
+def prepend_length(bytes):
+    out = struct.pack('>I', len(bytes))
+    return out + bytes
+    
+def make_mixnet_message(plain_bytes):
+    cipher3 = mix_encrypt(pk_mix3, plain_bytes)
+    cipher2 = mix_encrypt(pk_mix2, cipher3)
+    cipher1 = mix_encrypt(pk_mix1, cipher2)
+    return prepend_length(cipher1)
+    
+message = make_mixnet_message("Bob,test message to Bob".encode())
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 socket.connect((address, port))
-socket.send(outmsg)
+socket.send(message)
 
 ready = select.select([socket], [], [], 2)
 if not ready[0]:
